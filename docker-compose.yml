@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+
+  db-historial-medico:
+    image: mariadb:11
+    container_name: db-historial-medico
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: 123
+      MARIADB_DATABASE: db_historial_medico
+    ports:
+      - "3306:3306"
+    volumes:
+      - historial_medico_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ms-historial-medico:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ms-historial-medico
+    restart: unless-stopped
+    depends_on:
+      db-historial-medico:
+        condition: service_healthy
+    ports:
+      - "8090:8090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://db-historial-medico:3306/db_historial_medico?useSSL=false&serverTimezone=America/Argentina/Buenos_Aires&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: 123
+      # Si los microservicios de Médicos y Pacientes también corren en contenedores,
+      # reemplaza estas URLs por el nombre del servicio correspondiente (ej: http://ms-medicos:8081)
+      FEIGN_CLIENT_MS_PACIENTES_URL: http://host.docker.internal:8080
+      FEIGN_CLIENT_MS_MEDICOS_URL: http://host.docker.internal:8081
+
+volumes:
+  historial_medico_data:
